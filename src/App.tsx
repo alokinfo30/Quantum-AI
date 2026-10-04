@@ -26,7 +26,10 @@ import {
   Check,
   Download,
   Share2,
-  AlertCircle
+  AlertCircle,
+  RotateCcw,
+  Keyboard,
+  Command
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { cn } from './lib/utils';
@@ -39,6 +42,7 @@ import { ReasoningProcess } from './components/ReasoningProcess';
 import { PromptSuperpositionModal } from './components/PromptSuperpositionModal';
 import { useSpeechRecognition } from './hooks/useSpeechRecognition';
 import { useSpeechSynthesis } from './hooks/useSpeechSynthesis';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 
 interface Message {
   id: string;
@@ -91,6 +95,40 @@ export default function App() {
   // Copy state for messages
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [speakingId, setSpeakingId] = useState<string | null>(null);
+
+  // Toast notification state
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  // Clear chat / Reset session handler (Ctrl+K)
+  const handleClearChat = () => {
+    setMessages([]);
+    setInput('');
+    setSelectedImage(null);
+    if (isListening) stopListening();
+    if (isSpeaking) stopSpeaking();
+    resetTranscript();
+    showToast('Quantum state collapsed to ground state |0⟩ (Chat cleared)');
+  };
+
+  // Global Keyboard Shortcut Handler:
+  // - Ctrl+M / Cmd+M -> Toggle Voice Recording
+  // - Ctrl+K / Cmd+K -> Clear Chat / New Session
+  // - Ctrl+B / Cmd+B -> Toggle Quantum Simulation Canvas
+  // - Ctrl+H / Cmd+H -> Toggle Holographic Voice HUD
+  useKeyboardShortcuts({
+    onToggleVoice: () => {
+      toggleVoiceRecording();
+      showToast(isListening ? 'Voice recording stopped' : 'Voice recording started (Ctrl+M)');
+    },
+    onClearChat: handleClearChat,
+    onOpenCanvas: () => setIsCanvasOpen(prev => !prev),
+    onOpenVoiceModal: () => setIsVoiceModalOpen(prev => !prev),
+  });
 
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -350,10 +388,24 @@ export default function App() {
             />
           </div>
 
+          {/* Clear Chat Button */}
+          <button
+            onClick={handleClearChat}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-300 text-xs font-mono transition-all"
+            title="Clear Chat & Reset Session (Ctrl+K or Cmd+K)"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span className="hidden md:inline">Clear</span>
+            <kbd className="hidden sm:inline px-1.5 py-0.5 rounded bg-black/40 text-[9px] text-red-300/80 border border-red-500/30 font-mono">
+              Ctrl+K
+            </kbd>
+          </button>
+
           {/* Holographic Voice Mode Button */}
           <button
             onClick={() => setIsVoiceModalOpen(true)}
             className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-300 text-xs font-mono font-bold transition-all shadow-[0_0_15px_rgba(34,211,238,0.15)] group"
+            title="Open Live Holographic Voice HUD"
           >
             <Radio className="w-4 h-4 text-cyan-400 group-hover:scale-110 transition-transform" />
             <span className="hidden sm:inline">Live Voice HUD</span>
@@ -457,6 +509,21 @@ export default function App() {
 
         {/* Center Content: AI Chat / Query Area */}
         <div className="flex-1 flex flex-col items-center justify-between p-4 relative overflow-hidden">
+          {/* Floating Shortcut Action Toast */}
+          <AnimatePresence>
+            {toastMessage && (
+              <motion.div
+                initial={{ opacity: 0, y: -20, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                className="absolute top-4 z-30 px-4 py-2 rounded-xl bg-cyan-950/90 border border-cyan-400/40 text-cyan-200 text-xs font-mono shadow-[0_0_20px_rgba(34,211,238,0.3)] backdrop-blur-md flex items-center gap-2 pointer-events-none"
+              >
+                <Keyboard className="w-3.5 h-3.5 text-cyan-400" />
+                <span>{toastMessage}</span>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* Speech Error Banner if permission denied */}
           {speechError && (
             <div className="w-full max-w-4xl mb-3 px-4 py-2.5 rounded-xl bg-red-950/60 border border-red-500/40 text-red-200 text-xs font-mono flex items-center justify-between">
@@ -784,18 +851,21 @@ export default function App() {
                   type="button"
                   onClick={toggleVoiceRecording}
                   className={cn(
-                    "p-3 rounded-xl transition-all mr-1.5 flex items-center justify-center",
+                    "p-3 rounded-xl transition-all mr-1.5 flex items-center justify-center relative group/mic",
                     isListening
                       ? "bg-red-500 text-white shadow-[0_0_20px_rgba(239,68,68,0.7)] animate-pulse scale-105"
                       : "text-cyan-400 hover:text-white hover:bg-cyan-500/20"
                   )}
-                  title={isListening ? "Stop voice recording" : "Trigger voice-to-text recording (Web Speech API)"}
+                  title={isListening ? "Stop voice recording (Ctrl+M)" : "Trigger voice-to-text recording (Web Speech API) [Ctrl+M / Cmd+M]"}
                 >
                   {isListening ? (
                     <MicOff className="w-5 h-5 animate-spin" />
                   ) : (
                     <Mic className="w-5 h-5" />
                   )}
+                  <span className="hidden group-hover/mic:block absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded bg-black/80 border border-cyan-500/30 text-[9px] font-mono text-cyan-300 whitespace-nowrap shadow-lg">
+                    Ctrl+M
+                  </span>
                 </button>
 
                 {/* Transmit / Send Button */}
@@ -810,16 +880,26 @@ export default function App() {
               </div>
             </form>
 
-            {/* Input Footer Shortcuts & Indicator */}
-            <div className="flex items-center justify-between mt-2 px-2 text-[10px] font-mono text-cyan-400/60">
+            {/* Input Footer Shortcuts & Indicators */}
+            <div className="flex flex-wrap items-center justify-between gap-2 mt-2 px-2 text-[10px] font-mono text-cyan-400/60">
               <div className="flex items-center gap-3">
                 <span className="hidden sm:inline">Active Mode: <strong className="text-cyan-300">{AGENT_MODES.find(m => m.id === activeMode)?.name}</strong></span>
                 {enableSearch && <span className="text-cyan-300">● Live Grounding ON</span>}
               </div>
-              <div className="flex items-center gap-2">
-                <span>Press <strong>ENTER</strong> to collapse state</span>
-                <span>•</span>
-                <span>Click <Mic className="w-3 h-3 inline text-cyan-400" /> for Voice</span>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5 text-blue-300/80">
+                  <kbd className="px-1.5 py-0.5 rounded bg-cyan-950/80 border border-cyan-500/30 text-[9px] text-cyan-300 font-bold">
+                    Ctrl+M
+                  </kbd>
+                  <span>Voice Rec</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-blue-300/80">
+                  <kbd className="px-1.5 py-0.5 rounded bg-cyan-950/80 border border-cyan-500/30 text-[9px] text-cyan-300 font-bold">
+                    Ctrl+K
+                  </kbd>
+                  <span>Clear Chat</span>
+                </div>
+                <span className="hidden md:inline">• Press <strong>ENTER</strong> to send</span>
               </div>
             </div>
           </div>
