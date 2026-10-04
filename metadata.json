@@ -1,0 +1,6 @@
+{
+  "name": "Quantum AI",
+  "description": "An advanced, quantum-themed AI research interface with high-fidelity interactions and generative intelligence.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
